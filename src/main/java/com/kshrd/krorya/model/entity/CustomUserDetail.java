@@ -1,11 +1,9 @@
 package com.kshrd.krorya.model.entity;
 
 
-import com.kshrd.krorya.model.dto.AppUserDTO;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,7 +24,7 @@ public class CustomUserDetail implements UserDetails {
         List<SimpleGrantedAuthority> authorities = new ArrayList<>();
         System.out.println(appUser.getRole());
         if (appUser.getRole() != null) {
-            authorities.add(new SimpleGrantedAuthority("ROLE_" + appUser.getRole().toUpperCase()));
+            authorities.add(new SimpleGrantedAuthority(appUser.getRole().toUpperCase()));
         } else {
             System.out.println("User role is null for user: " + appUser.getEmail());
         }

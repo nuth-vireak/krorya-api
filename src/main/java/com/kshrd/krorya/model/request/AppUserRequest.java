@@ -1,20 +1,24 @@
 package com.kshrd.krorya.model.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class AppUserRequest {
 
     @NotBlank(message = "Username is required")
     @NotEmpty(message = "Username should not be empty")
+    @Schema(description = "Username of the user", example = "nuthvireak", defaultValue = "default_user")
     private String username;
 
     @Email(message = "Invalid email format")

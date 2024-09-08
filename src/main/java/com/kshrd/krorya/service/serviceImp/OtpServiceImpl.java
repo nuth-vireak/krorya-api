@@ -1,22 +1,18 @@
-package com.kshrd.krorya.service.serviceImplementation;
+package com.kshrd.krorya.service.serviceImp;
 
-import com.amazonaws.services.kms.model.ConflictException;
 import com.kshrd.krorya.convert.AppUserConvertor;
 import com.kshrd.krorya.convert.OtpDTOConvertor;
 import com.kshrd.krorya.exception.CustomBadRequestException;
 import com.kshrd.krorya.exception.CustomNotFoundException;
-import com.kshrd.krorya.exception.DuplicatedException;
-import com.kshrd.krorya.model.dto.AppUserDTO;
 import com.kshrd.krorya.model.dto.OtpDTO;
 import com.kshrd.krorya.model.entity.AppUser;
-import com.kshrd.krorya.model.entity.otp;
+import com.kshrd.krorya.model.entity.Otp;
 import com.kshrd.krorya.model.request.PasswordRequest;
 import com.kshrd.krorya.repository.OtpRepository;
 import com.kshrd.krorya.service.OtpService;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
-import org.apache.coyote.BadRequestException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +24,7 @@ import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
 import java.util.Date;
 import java.util.Random;
 import java.util.UUID;
@@ -35,7 +32,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class OtpServiceImpl implements OtpService {
-//    private static final Logger log = LoggerFactory.getLogger(OtpServiceImpl.class);
+    private static final Logger log = LoggerFactory.getLogger(OtpServiceImpl.class);
     private final OtpRepository otpRepository;
     private final JavaMailSender mailSender;
     private final TemplateEngine templateEngine;
@@ -53,8 +50,10 @@ public class OtpServiceImpl implements OtpService {
 
     @Override
     public void save(OtpDTO otpDTO) {
-//        log.info("OtpDTO in OtpServiceImpl: {}",otpDTO);
-        otpRepository.createNewOtp(otpDTO);
+        log.info("OtpDTO in OtpServiceImpl: {}",otpDTO);
+        Otp otp = otpDTOConvertor.toEntity(otpDTO);
+        otpRepository.save(otp);
+        log.info("Otp saved: {}", otp);
     }
 
     @Override
@@ -67,15 +66,13 @@ public class OtpServiceImpl implements OtpService {
             throw new CustomBadRequestException("Invalid OTP code. OTP must be exactly 6 digits long.");
         }
 
-        OtpDTO otpDTO = otpRepository.findByCode(code);
+        Otp otpCode = otpRepository.findByOtpCode(code);
 
-        if (otpDTO == null) {
+        if (otpCode == null) {
             throw new CustomNotFoundException("Invalid OTP code.");
         }
 
-//        verify(code);
-
-        return otpDTO;
+        return otpDTOConvertor.toDTO(otpCode);
     }
 
     @Override
@@ -85,17 +82,17 @@ public class OtpServiceImpl implements OtpService {
 
     @Override
     public void verify(String otpCode) {
-        OtpDTO otpDTO = otpRepository.findByCode(otpCode);
-        if (otpDTO.isVerify()){
+        Otp byOtpCode = otpRepository.findByOtpCode(otpCode);
+        if (byOtpCode.isVerify()){
             throw new CustomBadRequestException("This otp already verified!");
         }
-        otpRepository.verify(otpCode);
+        otpRepository.verifyOtp(otpCode);
     }
 
     @Override
     public void verifyForgetPassword(String otpCode) {
-        OtpDTO otpDTO = otpRepository.findByCode(otpCode);
-        if (otpDTO.isVerifiedForget()){
+        Otp byOtpCode = otpRepository.findByOtpCode(otpCode);
+        if (byOtpCode.isVerifiedForget()){
             throw new CustomBadRequestException("This otp already verified!");
         }
         otpRepository.verifyForgetPassword(otpCode);
@@ -103,21 +100,16 @@ public class OtpServiceImpl implements OtpService {
 
     @Override
     public void regenerateAndResendOTP(String email) throws MessagingException, IOException {
-        otp existingOtp = otpRepository.findByEmail(email);
+        Otp existingOtp = otpRepository.findByEmail(email);
         if (existingOtp == null) {
             throw new CustomNotFoundException("The email does not exist");
         }
-//        if (existingOtp.getVerify()) {
-//            throw new IllegalStateException("Email is already verified");
-//        }
-//        log.info("Existing Otp: {}", existingOtp);
         Integer otpLength = 6;
         OtpDTO newOtp = generateOtp(otpLength, existingOtp.getAppUser());
         existingOtp.setOtpCode(newOtp.getOtpCode());
         existingOtp.setExpiresAt(newOtp.getExpiresAt());
-        otpRepository.update(otpDTOConvertor.toDTO(existingOtp));
+        otpRepository.updateOtp(otpDTOConvertor.toDTO(existingOtp));
         sendOtpEmail(email, newOtp.getOtpCode());
-//        log.info("New Otp: {}", newOtp);
     }
 
     private void sendOtpEmail(String email, String otpCode) throws MessagingException {
@@ -139,22 +131,19 @@ public class OtpServiceImpl implements OtpService {
 
     @Override
     public void resetPasswordByEmail(PasswordRequest passwordRequest, String email) {
-//        System.out.println(passwordRequest.getPassword());
-        otp existingOtp = otpRepository.findByEmail(email);
-//        System.out.println(existingOtp);
-//        System.out.println("This is the result" + existingOtp.getIsVerifiedForget());
-        if (!existingOtp.getIsVerifiedForget()) {
+        Otp existingOtp = otpRepository.findByEmail(email);
+        if (!existingOtp.isVerifiedForget()) {
             throw new CustomBadRequestException("OTP didn't verify");
         }
         String newPassword = passwordEncoder.encode(passwordRequest.getPassword());
         otpRepository.changePassword(newPassword, email);
-        otpRepository.verifyForgetPasswordToFalse(existingOtp.getOtpCode());
+        otpRepository.resetForgetPasswordVerification(existingOtp.getOtpCode());
     }
 
     @Override
-    public otp findOtpByUserId(UUID userId) {
+    public Otp findOtpByUserId(UUID userId) {
 //        log.info("Fetching OTP for user: {}", userId);
-        otp otp = otpRepository.findOtpByUserId(userId);
+        Otp otp = otpRepository.findOtpByUserId(userId);
 //        System.out.println(otp + " after finding the user by id" );
 //        log.info("Retrieved OTP: {}", otp);
         if (otp != null) {
@@ -165,13 +154,31 @@ public class OtpServiceImpl implements OtpService {
 
     @Override
     public OtpDTO generateOtp(Integer length, AppUser appUser) {
-//        log.info("AppUser : {}",appUser);
-        final long expiryInterval = 5L * 60 * 1000; // 5 minutes
+        final long expiryIntervalMinutes = 5; // 5 minutes
+        String otpCode = generateOtpCode(length);
+
+        // Use LocalDateTime for both issuedAt and expiresAt
+        LocalDateTime issuedAt = LocalDateTime.now();
+        LocalDateTime expiresAt = issuedAt.plusMinutes(expiryIntervalMinutes);
+
+        return new OtpDTO(
+                otpCode,
+                issuedAt, // Set the issuedAt date
+                expiresAt, // Set the expiry date
+                false, // OTP not verified initially
+                appUserConvertor.toDTO(appUser),
+                appUser.getUserId(),
+                false // Not verified for forgotten password scenario
+        );
+    }
+
+    private String generateOtpCode(int length) {
         Random random = new Random();
-        StringBuilder otp = new StringBuilder();
+        StringBuilder otp = new StringBuilder(length);
         for (int i = 0; i < length; i++) {
             otp.append(random.nextInt(10));
         }
-        return new OtpDTO(otp.toString(), new Date(), new Date(System.currentTimeMillis() + expiryInterval), false, appUserConvertor.toDTO(appUser), appUser.getUserId(), false);
+        return otp.toString();
     }
+
 }

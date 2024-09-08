@@ -2,7 +2,7 @@ package com.kshrd.krorya.service;
 
 import com.kshrd.krorya.model.dto.OtpDTO;
 import com.kshrd.krorya.model.entity.AppUser;
-import com.kshrd.krorya.model.entity.otp;
+import com.kshrd.krorya.model.entity.Otp;
 import com.kshrd.krorya.model.request.PasswordRequest;
 import jakarta.mail.MessagingException;
 import org.springframework.stereotype.Service;
@@ -28,7 +28,7 @@ public interface OtpService {
 
     void resetPasswordByEmail(PasswordRequest passwordRequest, String email);
 
-    otp findOtpByUserId(UUID userId);
+    Otp findOtpByUserId(UUID userId);
 
     OtpDTO generateOtp(Integer length, AppUser appUser);
 }

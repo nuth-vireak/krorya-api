@@ -1,22 +1,17 @@
 package com.kshrd.krorya.configuration;
 
-import com.kshrd.krorya.exception.CustomAccessDeniedHandler;
 import com.kshrd.krorya.security.JwtAuthEntrypoint;
 import com.kshrd.krorya.security.JwtAuthFilter;
-import com.kshrd.krorya.service.AppUserService;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
-import org.springframework.security.config.annotation.method.configuration.EnableGlobalMethodSecurity;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
@@ -30,8 +25,6 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
     private final JwtAuthEntrypoint jwtAuthEntrypoint;
-
-    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Bean
     public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
@@ -68,7 +61,6 @@ public class SecurityConfig {
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(jwtAuthEntrypoint)
-                        .accessDeniedHandler(customAccessDeniedHandler)
                 )
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

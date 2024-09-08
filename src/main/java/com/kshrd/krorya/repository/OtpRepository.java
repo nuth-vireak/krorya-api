@@ -1,92 +1,64 @@
 package com.kshrd.krorya.repository;
 
-import com.kshrd.krorya.configuration.UUIDTypeHandler;
 import com.kshrd.krorya.model.dto.OtpDTO;
-import com.kshrd.krorya.model.entity.otp;
-import org.apache.ibatis.annotations.*;
-import org.apache.ibatis.type.JdbcType;
+import com.kshrd.krorya.model.entity.Otp;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
 import java.util.UUID;
 
-@Mapper
-public interface OtpRepository {
-//    @Insert("""
-//            INSERT INTO otps (otp_code, expired_date, is_verified, user_id) VALUES (#{otp.otpCode}, #{otp.expiresAt}, false, #{otp.appUserDTO.userId})
-//            """)
-//    void createNewOtp(@Param("otp") OtpDTO otpsDTO);
+@Repository
+public interface OtpRepository extends JpaRepository<Otp, UUID> {
 
-//    @Insert("""
-//            INSERT INTO otps (otp_code, expired_date, is_verified, user_id, is_verified_forget) VALUES (#{otp.otpCode}, #{otp.expiresAt}, false, #{otp.userId}, false)
-//            """)
-//    void createNewOtp(@Param("otp") OtpDTO otpsDTO);
+    // Find by OTP code
+    Otp findByOtpCode(String otpCode);
 
-    @Insert("""
-        INSERT INTO otps (otp_code, expired_date, is_verified, user_id, is_verified_forget)
-        VALUES (#{otp.otpCode}, #{otp.expiresAt}, #{otp.verify}, #{otp.userId}, #{otp.isVerifiedForget})
-    """)
-    void createNewOtp(@Param("otp") OtpDTO otpDTO);
+    // Find OTP by user email
+    @Query("SELECT o FROM Otp o WHERE o.appUser.email = :email")
+    Otp findByEmail(String email);
 
-    @Results(id = "otp", value = {
-            @Result(column = "user_id", property = "userId", javaType = UUID.class, jdbcType = JdbcType.OTHER, typeHandler = UUIDTypeHandler.class),
-            @Result(property = "issuedDate", column = "issued_at"),
-            @Result(property = "otpCode", column = "otp_code"),
-            @Result(property = "verify", column = "is_verified"),
-            @Result(property = "isVerifiedForget", column = "is_verified_forget"),
-            @Result(property = "expiresAt", column = "expired_date"),    })
-    @Select("""
-            SELECT * FROM otps WHERE otp_code = #{code}
-            """)
-    OtpDTO findByCode(String code);
+    // Find OTP by user ID
+    @Query("SELECT o FROM Otp o WHERE o.appUser.userId = :userId")
+    Otp findByUserId(UUID userId);
 
-    @Update("""
-            UPDATE otps SET is_verified = true WHERE otp_code = #{code}
-            """)
-    void verify(String code);
+    // Update OTP verification status
+    @Transactional
+    @Modifying
+    @Query("UPDATE Otp o SET o.verify = true WHERE o.otpCode = :otpCode")
+    void verifyOtp(String otpCode);
 
-    @Update("""
-            UPDATE otps SET is_verified_forget = true WHERE otp_code = #{code}
-            """)
-    void verifyForgetPassword(String code);
+    // Update OTP verification status for forget password
+    @Transactional
+    @Modifying
+    @Query("UPDATE Otp o SET o.isVerifiedForget = true WHERE o.otpCode = :otpCode")
+    void verifyForgetPassword(String otpCode);
 
-    default otp findOtpByUserId(UUID userId) {
-        System.out.println("in findOtpByUserId : " + userId) ;
-        System.out.println(selectOtpByUserId(userId));
-        return selectOtpByUserId(userId);
-    }
+    // Update OTP details
+    @Modifying
+    @Transactional
+    @Query("UPDATE Otp o SET o.otpCode = :#{#otp.otpCode}, o.expiresAt = :#{#otp.expiresAt}, o.verify = :#{#otp.verify} WHERE o.appUser.userId = :#{#otp.userId}")
+    void updateOtp(@Param("otp") OtpDTO otpDTO);
 
-    @Select("""
-            SELECT * FROM otps WHERE user_id = #{userId}
-            """)
-    @Results(id = "otpMap", value = {
-            @Result(column = "otp_id", property = "otpId", javaType = UUID.class, jdbcType = JdbcType.OTHER, typeHandler = UUIDTypeHandler.class),
-            @Result(column = "otp_code", property = "otpCode"),
-            @Result(column = "issued_at", property = "issuedAt"),
-            @Result(column = "expired_date", property = "expiresAt"),
-            @Result(column = "is_verified", property = "verify"),
-            @Result(column = "user_id", property = "userId", javaType = UUID.class, jdbcType = JdbcType.OTHER, typeHandler = UUIDTypeHandler.class),
-            @Result(column = "user_id", property = "appUser", one = @One(select = "com.kshrd.krorya.repository.AppUserRepository.selectUserById")),
-            @Result(column = "is_verified_forget", property = "isVerifiedForget")
-    })
-    otp selectOtpByUserId(UUID userId);
 
-    @Select("""
-            SELECT * FROM otps WHERE user_id = (SELECT users.user_id FROM users WHERE email = #{email})
-            """)
-    @ResultMap("otpMap")
-    otp findByEmail(String email);
-
-    @Update("""
-            UPDATE otps SET otp_code = #{otp.otpCode}, expired_date = #{otp.expiresAt}, is_verified = #{otp.verify} WHERE user_id = #{otp.userId}
-            """)
-    void update(@Param("otp") OtpDTO existingOtp);
-
-    @Update("""
-            UPDATE users SET password = #{newPassword}
-            WHERE email = #{email}
-            """)
+    // Change user password
+    @Transactional
+    @Modifying
+    @Query("UPDATE AppUser u SET u.password = :newPassword WHERE u.email = :email")
     void changePassword(String newPassword, String email);
-    @Update("""
-            UPDATE otps SET is_verified_forget = false WHERE otp_code = #{otpCode}
-            """)
-    void verifyForgetPasswordToFalse(String otpCode);
+
+    // Reset forget password verification flag
+    @Transactional
+    @Modifying
+    @Query("UPDATE Otp o SET o.isVerifiedForget = false WHERE o.otpCode = :otpCode")
+    void resetForgetPasswordVerification(String otpCode);
+
+    @Transactional
+    @Modifying
+    @Query("SELECT o FROM Otp o WHERE o.appUser.userId = :userId")
+    Otp findOtpByUserId(UUID userId);
 }
